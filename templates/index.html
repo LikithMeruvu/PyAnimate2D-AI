@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Animation Generator</title>
+
+  <!-- Tailwind CSS (development use only) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Prism.js for syntax highlighting -->
+  <link
+    href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism-tomorrow.min.css"
+    rel="stylesheet"
+  />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-python.min.js"></script>
+
+  <!-- Video.js CSS & JS -->
+  <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet"/>
+  <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+
+  <style>
+    body {
+      background: linear-gradient(135deg, #f7fafc, #e2e8f0);
+    }
+    .container {
+      max-width: 1200px;
+      margin: auto;
+    }
+    /* Chat history area */
+    #chat-history {
+      max-height: 600px;
+      overflow-y: auto;
+      margin-bottom: 1rem;
+    }
+    #chat-history pre {
+      background-color: #f8f9fa;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+      margin-top: 0.75rem;
+      border: 1px solid #ddd;
+      white-space: pre-wrap;
+    }
+    .chat-message {
+      opacity: 0;
+      transform: translateY(20px);
+      animation: slideIn 0.4s ease forwards;
+    }
+    @keyframes slideIn {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    /* Video thumbnail styling */
+    .video-thumbnail {
+      position: relative;
+      display: inline-block;
+      margin-right: 10px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.2s ease-in-out, transform 0.2s;
+    }
+    .video-thumbnail:hover {
+      border-color: #3490dc;
+      transform: scale(1.02);
+    }
+    .video-thumbnail video {
+      width: 160px;
+      height: 90px;
+      object-fit: cover;
+    }
+    .video-thumbnail-link {
+      text-decoration: none;
+      color: inherit;
+    }
+    /* Loading overlay styling */
+    .loading {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .loading-content {
+      text-align: center;
+      color: white;
+    }
+    .spinner {
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0); }
+      100% { transform: rotate(360deg); }
+    }
+    /* Video preview card */
+    .video-preview {
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+      border-radius: 0.5rem;
+      overflow: hidden;
+      background: #1a1a1a;
+      position: relative;
+    }
+    /* Form control focus effect */
+    .form-control {
+      transition: all 0.3s ease;
+    }
+    .form-control:focus {
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.5);
+    }
+    /* Button hover effect */
+    button {
+      transition: transform 0.2s;
+    }
+    button:hover {
+      transform: scale(1.02);
+    }
+    /* Tailwind modal for "Configuration Saved" message */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 60;
+    }
+    .modal-content {
+      background: #fff;
+      border-radius: 0.5rem;
+      padding: 2rem;
+      max-width: 400px;
+      width: 90%;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Loading overlay -->
+  <div id="loading" class="loading hidden">
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <p class="text-lg" id="loading-text">Generating Animation...</p>
+      <p class="text-sm mt-2" id="loading-status"></p>
+    </div>
+  </div>
+
+  <!-- "Configuration Saved" Modal -->
+  <div id="configSavedModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 class="text-lg font-bold mb-4">Configuration Saved!</h3>
+      <p>Your configuration has been successfully saved.</p>
+      <div class="mt-4 text-right">
+        <button
+          id="closeConfigModal"
+          class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container p-6">
+    <div class="flex flex-col lg:flex-row gap-6">
+
+      <!-- Left Column: Configuration, Prompt, Chat History -->
+      <div class="w-full lg:w-1/2 space-y-6">
+        <!-- Heading -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+          <h1 class="text-3xl font-bold mb-4 text-gray-800">AI Animation Generator</h1>
+          <p class="text-gray-600">
+            Use the form below to set your API key, model, temperature (0.0–2.0),
+            and describe your animation to generate a new video.
+          </p>
+        </div>
+
+        <!-- Configuration -->
+        <div class="bg-white rounded-lg shadow-lg p-6 space-y-4">
+          <h2 class="text-xl font-semibold text-gray-800">Configuration</h2>
+          <form id="config-form" class="space-y-3">
+            <div>
+              <label for="api_key" class="block text-sm font-medium text-gray-700">
+                Gemini API Key (hidden):
+              </label>
+              <input
+                type="password"
+                id="api_key"
+                name="api_key"
+                value="{{ config.api_key }}"
+                class="form-control w-full px-4 py-2 border rounded"
+                placeholder="••••••••"
+              />
+            </div>
+            <div>
+              <label for="model_name" class="block text-sm font-medium text-gray-700">Model:</label>
+              <select
+                id="model_name"
+                name="model_name"
+                class="form-control w-full px-4 py-2 border rounded"
+              >
+                {% for model in available_models %}
+                  <option value="{{ model.id }}" {% if model.id == config.model_name %}selected{% endif %}>
+                    {{ model.name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label for="temperature" class="block text-sm font-medium text-gray-700">
+                Temperature (0.0–2.0):
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="2"
+                id="temperature"
+                name="temperature"
+                value="{{ config.temperature }}"
+                class="form-control w-full px-4 py-2 border rounded"
+              />
+            </div>
+            <button
+              type="submit"
+              class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
+            >
+              Save Configuration
+            </button>
+          </form>
+        </div>
+
+        <!-- Prompt Form -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+          <h2 class="text-xl font-semibold mb-4 text-gray-800">Describe Your Animation</h2>
+          <form id="prompt-form" class="space-y-4">
+            <!-- Hidden fields for config -->
+            <input type="hidden" id="hidden_api_key" name="api_key" value="{{ config.api_key }}">
+            <input type="hidden" id="hidden_model_name" name="model_name" value="{{ config.model_name }}">
+            <input type="hidden" id="hidden_temperature" name="temperature" value="{{ config.temperature }}">
+
+            <div>
+              <textarea
+                id="prompt"
+                name="prompt"
+                rows="4"
+                class="form-control w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2"
+                placeholder="E.g., Create a bouncing ball animation with a colorful trail..."
+                required
+              ></textarea>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label for="duration" class="block text-sm font-medium text-gray-700">Duration (s):</label>
+                <input
+                  type="number"
+                  id="duration"
+                  name="duration"
+                  value="30"
+                  class="form-control w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2"
+                />
+              </div>
+              <div>
+                <label for="quality" class="block text-sm font-medium text-gray-700">Resolution:</label>
+                <select
+                  id="quality"
+                  name="quality"
+                  class="form-control w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2"
+                >
+                  <option value="144p">144p</option>
+                  <option value="240p">240p</option>
+                  <option value="360p">360p</option>
+                  <option value="480p">480p</option>
+                  <option value="720p" selected>720p</option>
+                  <option value="1080p">1080p</option>
+                  <option value="1440p">1440p</option>
+                </select>
+              </div>
+              <div>
+                <label for="fps" class="block text-sm font-medium text-gray-700">FPS:</label>
+                <select
+                  id="fps"
+                  name="fps"
+                  class="form-control w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2"
+                >
+                  <option value="15">15</option>
+                  <option value="30" selected>30</option>
+                  <option value="45">45</option>
+                  <option value="60">60</option>
+                </select>
+              </div>
+            </div>
+            <button
+              type="submit"
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg"
+            >
+              Generate Animation
+            </button>
+          </form>
+        </div>
+
+        <!-- Chat History -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+          <h2 class="text-xl font-semibold mb-4 text-gray-800">Generation History</h2>
+          <div id="chat-history" class="space-y-4">
+            {% if chat_history %}
+              {% for message in chat_history %}
+                <div class="chat-message {% if message.role == 'user' %}text-right{% endif %}">
+                  <div class="inline-block p-3 rounded-lg {% if message.role == 'user' %}bg-blue-100{% else %}bg-gray-100{% endif %}">
+                    {% if message.role == 'model' %}
+                      {{ message.parts[0]
+                         | replace('```python', '<pre><code class="language-python">')
+                         | replace('```', '</code></pre>')
+                         | safe
+                      }}
+                    {% else %}
+                      <p class="text-gray-800">{{ message.parts[0] | replace('"', '&quot;') }}</p>
+                    {% endif %}
+                  </div>
+                </div>
+              {% else %}
+                <p class="text-gray-500">No messages yet. Start a conversation!</p>
+              {% endfor %}
+            {% else %}
+              <p class="text-gray-500">No messages yet. Start a conversation!</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Video Preview & Download -->
+      <div class="w-full lg:w-1/2 space-y-6">
+        <div class="bg-white rounded-lg shadow-lg p-6">
+          <h2 class="text-xl font-semibold mb-4 text-gray-800">Generated Video</h2>
+          <!-- Video.js player container -->
+          <div id="video-container" class="video-preview mb-6">
+            {% if video_files %}
+              <video
+                id="generated-video"
+                class="video-js vjs-default-skin"
+                controls
+                preload="auto"
+                width="640"
+                height="360"
+                autoplay
+                muted
+                playsinline
+                data-setup="{}"
+              >
+                <source
+                  src="{{ url_for('frontend_video', filename=video_files[0]) }}"
+                  type="video/mp4"
+                />
+                <p class="vjs-no-js">
+                  To view this video please enable JavaScript, and consider upgrading to a web browser that
+                  <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+                </p>
+              </video>
+            {% else %}
+              <p class="text-center text-gray-500 py-8">No video generated yet.</p>
+            {% endif %}
+          </div>
+          <!-- Download button -->
+          {% if video_files %}
+            <a
+              id="download-video-btn"
+              href="{{ url_for('frontend_video', filename=video_files[0]) }}"
+              download="{{ video_files[0] }}"
+              class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+            >
+              Download Video
+            </a>
+          {% else %}
+            <a
+              id="download-video-btn"
+              href="#"
+              download
+              class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded hidden"
+            >
+              Download Video
+            </a>
+          {% endif %}
+        </div>
+
+        {% if video_files|length > 1 %}
+          <div class="bg-white rounded-lg shadow-lg p-6">
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">Previous Generations</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {% for video_file in video_files[1:] %}
+                <div class="video-thumbnail">
+                  <!-- Video thumbnail link -->
+                  <a
+                    href="{{ url_for('frontend_video', filename=video_file) }}"
+                    target="_blank"
+                    class="video-thumbnail-link"
+                  >
+                    <video muted playsinline>
+                      <source
+                        src="{{ url_for('frontend_video', filename=video_file) }}"
+                        type="video/mp4"
+                      />
+                    </video>
+                    <span class="video-filename">{{ video_file }}</span>
+                  </a>
+                  <!-- Download button for each previous video -->
+                  <a
+                    class="bg-green-600 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-sm ml-2 inline-block"
+                    href="{{ url_for('frontend_video', filename=video_file) }}"
+                    download="{{ video_file }}"
+                  >
+                    Download
+                  </a>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Refs
+    const configForm = document.getElementById("config-form");
+    const promptForm = document.getElementById("prompt-form");
+    const chatHistoryDiv = document.getElementById("chat-history");
+    const loadingOverlay = document.getElementById("loading");
+    const loadingStatus = document.getElementById("loading-status");
+    const downloadBtn = document.getElementById("download-video-btn");
+
+    // Tailwind modal for "Configuration Saved"
+    const configSavedModal = document.getElementById("configSavedModal");
+    const closeConfigModalBtn = document.getElementById("closeConfigModal");
+
+    // Configuration fields
+    const apiKeyInput = document.getElementById("api_key");
+    const modelNameInput = document.getElementById("model_name");
+    const temperatureInput = document.getElementById("temperature");
+
+    // Hidden fields in the prompt form
+    const hiddenApiKey = document.getElementById("hidden_api_key");
+    const hiddenModelName = document.getElementById("hidden_model_name");
+    const hiddenTemperature = document.getElementById("hidden_temperature");
+
+    // Close config modal
+    closeConfigModalBtn.addEventListener("click", () => {
+      configSavedModal.classList.add("hidden");
+    });
+
+    // 1) Save Configuration
+    configForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      // Enforce 0.0 <= temperature <= 2.0
+      let tempVal = parseFloat(temperatureInput.value) || 0.0;
+      if (tempVal < 0) tempVal = 0.0;
+      if (tempVal > 2) tempVal = 2.0;
+      temperatureInput.value = tempVal.toFixed(1);
+
+      const formData = new FormData(configForm);
+      try {
+        const response = await fetch("/set_config", { method: "POST", body: formData });
+        const data = await response.json();
+        if (data.success) {
+          // Update hidden fields
+          hiddenApiKey.value = apiKeyInput.value;
+          hiddenModelName.value = modelNameInput.value;
+          hiddenTemperature.value = temperatureInput.value;
+          // Show "Configuration Saved" modal
+          configSavedModal.classList.remove("hidden");
+        }
+      } catch (err) {
+        console.error("Error saving config:", err);
+      }
+    });
+
+    // 2) Generate animation
+    promptForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      loadingOverlay.classList.remove("hidden");
+      loadingStatus.textContent = "Generating code...";
+
+      // Sync config from the config form
+      hiddenApiKey.value = apiKeyInput.value;
+      hiddenModelName.value = modelNameInput.value;
+      hiddenTemperature.value = temperatureInput.value;
+
+      const formData = new FormData(promptForm);
+      try {
+        const resp = await fetch("/generate", { method: "POST", body: formData });
+        const data = await resp.json();
+        loadingStatus.textContent = "Processing animation...";
+
+        if (data.success) {
+          addChatMessage("user", formData.get("prompt"));
+          addChatMessage("model", data.code);
+          updateVideoSource(data.video_file);
+        } else {
+          handleError(formData.get("prompt"), data.error);
+        }
+      } catch (error) {
+        handleError(formData.get("prompt"), "An unexpected error occurred.");
+        console.error("Fetch error:", error);
+      } finally {
+        loadingOverlay.classList.add("hidden");
+      }
+    });
+
+    // Insert chat messages into UI
+    function addChatMessage(role, content) {
+      const messageDiv = document.createElement("div");
+      messageDiv.className = `chat-message ${role === "user" ? "text-right" : ""}`;
+      const innerDiv = document.createElement("div");
+      innerDiv.className = `inline-block p-3 rounded-lg ${role === "user" ? "bg-blue-100" : "bg-gray-100"}`;
+      if (role === "model") {
+        // highlight code with Prism
+        const formattedCode = Prism.highlight(content, Prism.languages.python, "python");
+        innerDiv.innerHTML = `<pre><code class="language-python">${formattedCode}</code></pre>`;
+      } else {
+        innerDiv.textContent = content;
+      }
+      messageDiv.appendChild(innerDiv);
+      chatHistoryDiv.prepend(messageDiv);
+    }
+
+    function handleError(prompt, error) {
+      addChatMessage("user", prompt);
+      addChatMessage("model", `Error: ${error}`);
+      console.error("Error encountered:", error);
+    }
+
+    // Update the video player with the new source
+    function updateVideoSource(videoFile) {
+      const newSrc = `/frontend_video/${videoFile}`;
+      let videoElement = document.getElementById("generated-video");
+
+      if (!videoElement) {
+        // Create a new video element if none exists
+        videoElement = document.createElement("video");
+        videoElement.setAttribute("id", "generated-video");
+        videoElement.className = "video-js vjs-default-skin";
+        videoElement.setAttribute("controls", "true");
+        videoElement.setAttribute("preload", "auto");
+        videoElement.setAttribute("width", "640");
+        videoElement.setAttribute("height", "360");
+        videoElement.setAttribute("autoplay", "");
+        videoElement.setAttribute("muted", "");
+        videoElement.setAttribute("playsinline", "");
+        videoElement.setAttribute("data-setup", "{}");
+
+        const source = document.createElement("source");
+        source.setAttribute("src", newSrc);
+        source.setAttribute("type", "video/mp4");
+        videoElement.appendChild(source);
+
+        const container = document.getElementById("video-container");
+        container.innerHTML = "";
+        container.appendChild(videoElement);
+
+        videojs(videoElement);
+      } else {
+        const player = videojs(videoElement);
+        player.src({ type: "video/mp4", src: newSrc });
+        player.load();
+        player.play().catch(err => console.error("Video play failed:", err));
+      }
+
+      // Update Download button
+      downloadBtn.href = newSrc;
+      downloadBtn.setAttribute("download", videoFile);
+      downloadBtn.classList.remove("hidden");
+    }
+  </script>
+</body>
+</html>
