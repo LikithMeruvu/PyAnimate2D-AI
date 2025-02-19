@@ -12,6 +12,12 @@ A powerful AI-powered animation generation system that combines Flask, Pygame, a
 - **History Management**: Keep track of previous generations and chat history
 - **Responsive UI**: Modern, user-friendly interface built with Tailwind CSS
 
+
+## Video Tutorial
+
+[Watch the Video Tutorial](https://github.com/LikithMeruvu/PyAnimate2D-AI/blob/main/pyanimate.mp4)
+
+
 ## 🚀 Getting Started
 
 ### Prerequisites
