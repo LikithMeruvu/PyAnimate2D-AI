@@ -13,7 +13,10 @@ A powerful AI-powered animation generation system that combines Flask, Pygame, a
 - **Responsive UI**: Modern, user-friendly interface built with Tailwind CSS
 
 
-(https://github.com/user-attachments/assets/ff500c8b-a7ee-48ac-8529-bc7f71a2a4ce)
+## Video Demo
+
+https://github.com/user-attachments/assets/ff500c8b-a7ee-48ac-8529-bc7f71a2a4ce
+
 
 ## 🚀 Getting Started
 
