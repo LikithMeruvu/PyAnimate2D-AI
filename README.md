@@ -13,11 +13,11 @@ A powerful AI-powered animation generation system that combines Flask, Pygame, a
 - **Responsive UI**: Modern, user-friendly interface built with Tailwind CSS
 
 
-<video width="640" height="360" controls>
+[<video width="640" height="360" controls>
   <source src="https://github.com/LikithMeruvu/PyAnimate2D-AI/blob/main/pyanimate.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
-
+](https://github.com/user-attachments/assets/ff500c8b-a7ee-48ac-8529-bc7f71a2a4ce)
 
 ## 🚀 Getting Started
 
