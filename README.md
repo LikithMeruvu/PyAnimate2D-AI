@@ -188,6 +188,8 @@ Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTIN
 - Flask team for the web framework
 - Contributors and users of the project
 
+<a href="https://www.buymeacoffee.com/likith_codebook"><img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=likith_codebook&button_colour=BD5FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" /></a>
+
 ## 📞 Support
 
 For support, please:
