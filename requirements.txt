@@ -9,4 +9,4 @@ beautifulsoup4
 html2text
 langchain-chroma
 chromadb
-pygame
+opencv-python

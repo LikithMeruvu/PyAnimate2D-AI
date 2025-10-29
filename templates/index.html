@@ -14,7 +14,7 @@
     rel="stylesheet"
   />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-javascript.min.js"></script>
 
   <!-- p5.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
@@ -53,29 +53,6 @@
         transform: translateY(0);
       }
     }
-    /* Video thumbnail styling */
-    .video-thumbnail {
-      position: relative;
-      display: inline-block;
-      margin-right: 10px;
-      margin-bottom: 10px;
-      cursor: pointer;
-      border: 2px solid transparent;
-      transition: border-color 0.2s ease-in-out, transform 0.2s;
-    }
-    .video-thumbnail:hover {
-      border-color: #3490dc;
-      transform: scale(1.02);
-    }
-    .video-thumbnail video {
-      width: 160px;
-      height: 90px;
-      object-fit: cover;
-    }
-    .video-thumbnail-link {
-      text-decoration: none;
-      color: inherit;
-    }
     /* Loading overlay styling */
     .loading {
       position: fixed;
@@ -103,7 +80,7 @@
       0% { transform: rotate(0); }
       100% { transform: rotate(360deg); }
     }
-    /* Video preview card */
+    /* Canvas container */
     #canvas-container {
       box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
       border-radius: 0.5rem;
@@ -181,8 +158,8 @@
         <div class="bg-white rounded-lg shadow-lg p-6">
           <h1 class="text-3xl font-bold mb-4 text-gray-800">AI 2D Animation Generator</h1>
           <p class="text-gray-600">
-            Use the form below to set your API key, model, temperature (0.0–2.0),
-            and describe your animation to generate a new video.
+            Use the form below to set your API key, model, temperature (0.0–1.0),
+            and describe your animation to generate a new animation.
           </p>
         </div>
 
@@ -219,13 +196,13 @@
             </div>
             <div>
               <label for="temperature" class="block text-sm font-medium text-gray-700">
-                Temperature (0.0–2.0):
+                Temperature (0.0–1.0):
               </label>
               <input
                 type="number"
                 step="0.1"
                 min="0"
-                max="2"
+                max="1"
                 id="temperature"
                 name="temperature"
                 value="{{ config.temperature }}"
@@ -319,11 +296,7 @@
                 <div class="chat-message {% if message.role == 'user' %}text-right{% endif %}">
                   <div class="inline-block p-3 rounded-lg {% if message.role == 'user' %}bg-blue-100{% else %}bg-gray-100{% endif %}">
                     {% if message.role == 'model' %}
-                      {{ message.parts[0]
-                         | replace('```python', '<pre><code class="language-python">')
-                         | replace('```', '</code></pre>')
-                         | safe
-                      }}
+                      <pre><code class="language-javascript">{{ message.parts[0] | safe }}</code></pre>
                     {% else %}
                       <p class="text-gray-800">{{ message.parts[0] | replace('"', '&quot;') }}</p>
                     {% endif %}
@@ -373,6 +346,8 @@
     const hiddenModelName = document.getElementById("hidden_model_name");
     const hiddenTemperature = document.getElementById("hidden_temperature");
 
+    let currentSketch = null;
+
     // Close config modal
     closeConfigModalBtn.addEventListener("click", () => {
       configSavedModal.classList.add("hidden");
@@ -382,10 +357,10 @@
     configForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      // Enforce 0.0 <= temperature <= 2.0
+      // Enforce 0.0 <= temperature <= 1.0
       let tempVal = parseFloat(temperatureInput.value) || 0.0;
       if (tempVal < 0) tempVal = 0.0;
-      if (tempVal > 2) tempVal = 2.0;
+      if (tempVal > 1) tempVal = 1.0;
       temperatureInput.value = tempVal.toFixed(1);
 
       const formData = new FormData(configForm);
@@ -460,7 +435,6 @@
       console.error("Error encountered:", error);
     }
 
-    let currentSketch = null;
     function runAnimation(code) {
       const canvasContainer = document.getElementById("canvas-container");
       canvasContainer.innerHTML = ""; // Clear previous animation
@@ -469,19 +443,19 @@
         currentSketch.remove();
       }
 
+      // Wrap the generated code in a function to be executed by p5.js
       const sketch = (p) => {
-        // Inject the generated code into the sketch
-        try {
-          // Isolate the generated code in its own scope
-          const execSketch = new Function('p', code);
-          execSketch(p);
-        } catch (err) {
-          console.error("Error executing sketch code:", err);
-          handleError("Execution", "The generated code has an error and could not be run.");
-        }
+        // Create a new Function to evaluate the code in the p5.js scope
+        const execCode = new Function('p', code);
+        execCode(p);
       };
 
-      currentSketch = new p5(sketch, canvasContainer);
+      try {
+        currentSketch = new p5(sketch, canvasContainer);
+      } catch (err) {
+        console.error("Error creating p5.js sketch:", err);
+        handleError("Execution", "The generated code has an error and could not be run.");
+      }
     }
   </script>
 </body>
