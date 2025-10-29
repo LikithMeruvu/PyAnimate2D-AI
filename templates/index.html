@@ -16,9 +16,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-python.min.js"></script>
 
-  <!-- Video.js CSS & JS -->
-  <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet"/>
-  <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+  <!-- p5.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
 
   <style>
     body {
@@ -105,7 +104,7 @@
       100% { transform: rotate(360deg); }
     }
     /* Video preview card */
-    .video-preview {
+    #canvas-container {
       box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
       border-radius: 0.5rem;
       overflow: hidden;
@@ -340,93 +339,14 @@
         </div>
       </div>
 
-      <!-- Right Column: Video Preview & Download -->
+      <!-- Right Column: Animation Canvas -->
       <div class="w-full lg:w-1/2 space-y-6">
         <div class="bg-white rounded-lg shadow-lg p-6">
-          <h2 class="text-xl font-semibold mb-4 text-gray-800">Generated Video</h2>
-          <!-- Video.js player container -->
-          <div id="video-container" class="video-preview mb-6">
-            {% if video_files %}
-              <video
-                id="generated-video"
-                class="video-js vjs-default-skin"
-                controls
-                preload="auto"
-                width="640"
-                height="360"
-                autoplay
-                muted
-                playsinline
-                data-setup="{}"
-              >
-                <source
-                  src="{{ url_for('frontend_video', filename=video_files[0]) }}"
-                  type="video/mp4"
-                />
-                <p class="vjs-no-js">
-                  To view this video please enable JavaScript, and consider upgrading to a web browser that
-                  <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-                </p>
-              </video>
-            {% else %}
-              <p class="text-center text-gray-500 py-8">No video generated yet.</p>
-            {% endif %}
+          <h2 class="text-xl font-semibold mb-4 text-gray-800">Generated Animation</h2>
+          <div id="canvas-container" class="mb-6">
+              <p class="text-center text-gray-500 py-8">No animation generated yet.</p>
           </div>
-          <!-- Download button -->
-          {% if video_files %}
-            <a
-              id="download-video-btn"
-              href="{{ url_for('frontend_video', filename=video_files[0]) }}"
-              download="{{ video_files[0] }}"
-              class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-            >
-              Download Video
-            </a>
-          {% else %}
-            <a
-              id="download-video-btn"
-              href="#"
-              download
-              class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded hidden"
-            >
-              Download Video
-            </a>
-          {% endif %}
         </div>
-
-        {% if video_files|length > 1 %}
-          <div class="bg-white rounded-lg shadow-lg p-6">
-            <h3 class="text-lg font-semibold mb-3 text-gray-700">Previous Generations</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {% for video_file in video_files[1:] %}
-                <div class="video-thumbnail">
-                  <!-- Video thumbnail link -->
-                  <a
-                    href="{{ url_for('frontend_video', filename=video_file) }}"
-                    target="_blank"
-                    class="video-thumbnail-link"
-                  >
-                    <video muted playsinline>
-                      <source
-                        src="{{ url_for('frontend_video', filename=video_file) }}"
-                        type="video/mp4"
-                      />
-                    </video>
-                    <span class="video-filename">{{ video_file }}</span>
-                  </a>
-                  <!-- Download button for each previous video -->
-                  <a
-                    class="bg-green-600 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-sm ml-2 inline-block"
-                    href="{{ url_for('frontend_video', filename=video_file) }}"
-                    download="{{ video_file }}"
-                  >
-                    Download
-                  </a>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-        {% endif %}
       </div>
     </div>
   </div>
@@ -438,7 +358,6 @@
     const chatHistoryDiv = document.getElementById("chat-history");
     const loadingOverlay = document.getElementById("loading");
     const loadingStatus = document.getElementById("loading-status");
-    const downloadBtn = document.getElementById("download-video-btn");
 
     // Tailwind modal for "Configuration Saved"
     const configSavedModal = document.getElementById("configSavedModal");
@@ -506,7 +425,7 @@
         if (data.success) {
           addChatMessage("user", formData.get("prompt"));
           addChatMessage("model", data.code);
-          updateVideoSource(data.video_file);
+          runAnimation(data.code);
         } else {
           handleError(formData.get("prompt"), data.error);
         }
@@ -526,8 +445,8 @@
       innerDiv.className = `inline-block p-3 rounded-lg ${role === "user" ? "bg-blue-100" : "bg-gray-100"}`;
       if (role === "model") {
         // highlight code with Prism
-        const formattedCode = Prism.highlight(content, Prism.languages.python, "python");
-        innerDiv.innerHTML = `<pre><code class="language-python">${formattedCode}</code></pre>`;
+        const formattedCode = Prism.highlight(content, Prism.languages.javascript, "javascript");
+        innerDiv.innerHTML = `<pre><code class="language-javascript">${formattedCode}</code></pre>`;
       } else {
         innerDiv.textContent = content;
       }
@@ -541,46 +460,28 @@
       console.error("Error encountered:", error);
     }
 
-    // Update the video player with the new source
-    function updateVideoSource(videoFile) {
-      const newSrc = `/frontend_video/${videoFile}`;
-      let videoElement = document.getElementById("generated-video");
+    let currentSketch = null;
+    function runAnimation(code) {
+      const canvasContainer = document.getElementById("canvas-container");
+      canvasContainer.innerHTML = ""; // Clear previous animation
 
-      if (!videoElement) {
-        // Create a new video element if none exists
-        videoElement = document.createElement("video");
-        videoElement.setAttribute("id", "generated-video");
-        videoElement.className = "video-js vjs-default-skin";
-        videoElement.setAttribute("controls", "true");
-        videoElement.setAttribute("preload", "auto");
-        videoElement.setAttribute("width", "640");
-        videoElement.setAttribute("height", "360");
-        videoElement.setAttribute("autoplay", "");
-        videoElement.setAttribute("muted", "");
-        videoElement.setAttribute("playsinline", "");
-        videoElement.setAttribute("data-setup", "{}");
-
-        const source = document.createElement("source");
-        source.setAttribute("src", newSrc);
-        source.setAttribute("type", "video/mp4");
-        videoElement.appendChild(source);
-
-        const container = document.getElementById("video-container");
-        container.innerHTML = "";
-        container.appendChild(videoElement);
-
-        videojs(videoElement);
-      } else {
-        const player = videojs(videoElement);
-        player.src({ type: "video/mp4", src: newSrc });
-        player.load();
-        player.play().catch(err => console.error("Video play failed:", err));
+      if (currentSketch) {
+        currentSketch.remove();
       }
 
-      // Update Download button
-      downloadBtn.href = newSrc;
-      downloadBtn.setAttribute("download", videoFile);
-      downloadBtn.classList.remove("hidden");
+      const sketch = (p) => {
+        // Inject the generated code into the sketch
+        try {
+          // Isolate the generated code in its own scope
+          const execSketch = new Function('p', code);
+          execSketch(p);
+        } catch (err) {
+          console.error("Error executing sketch code:", err);
+          handleError("Execution", "The generated code has an error and could not be run.");
+        }
+      };
+
+      currentSketch = new p5(sketch, canvasContainer);
     }
   </script>
 </body>
